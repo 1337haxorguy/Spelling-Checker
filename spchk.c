@@ -9,45 +9,64 @@
 
 #define MAX_WORD_SIZE 100 // Maximum length of a word
 #define PATH_MAX 100 // Maximum length of a word
-
+#define MAX_NUM_OF_WORDS 134335 //maximum number of dictionary words
 
 
 int main (int argc, char *argv[]) {
 
-    if (argc < 3) {
-        perror("error");
-        return 1;
-    }
+    // if (argc < 3) {
+    //     perror("error");
+    //     return 1;
+    // }
 
     int dictFile = open(argv[1], O_RDONLY);
 
     if (dictFile < 0) {
+        printf("bruh");
         perror("Error opening file");
         return 1;
     }
 
-    for (int i = 2; i <= argc; i++) {
+    char dictionary[MAX_NUM_OF_WORDS][MAX_WORD_SIZE];
+    char *buffer = (char *) malloc(MAX_WORD_SIZE);
+    int bytes_read;
+    bytes_read = read(dictFile, buffer, MAX_WORD_SIZE - 1);
 
-        struct stat pathStat;
-        int r = stat(argv[i], &pathStat);
+    printf("%s", buffer);
 
-        if (r < 0) { 
-            perror("Error checking file/directory");
-            return 1;
 
-        }
-        if (S_ISREG(pathStat.st_mode)) {
-        // regular file
 
-        process_file(argv[i]);
-        
-        } else if (S_ISDIR(pathStat.st_mode)) {
-        // directory
-        } else {
 
-        }
+     // Read from the file until EOF is reached
+    // while ((bytes_read = read(dictFile, buffer, MAX_WORD_SIZE - 1)) > 0) {
 
-    }
+    // }
+
+    free(buffer);
+    
+
+    // for (int i = 2; i <= argc; i++) {
+
+    //     struct stat pathStat;
+    //     int r = stat(argv[i], &pathStat);
+
+    //     if (r < 0) { 
+    //         perror("Error checking file/directory");
+    //         return 1;
+
+    //     }
+    //     if (S_ISREG(pathStat.st_mode)) {
+    //     // regular file
+
+    //     process_file(argv[i]);
+
+    //     } else if (S_ISDIR(pathStat.st_mode)) {
+    //     // directory
+    //     } else {
+
+    //     }
+
+    // }
 
 
 
