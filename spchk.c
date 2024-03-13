@@ -1,101 +1,161 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-#include <dirent.h>
+#include <errno.h>  // Include errno.h for error handling
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
-
-#define MAX_WORD_SIZE 100 // Maximum length of a word
-#define PATH_MAX 100 // Maximum length of a word
-#define MAX_NUM_OF_WORDS 134335 //maximum number of dictionary words
+#include <ctype.h>
 
 
-int main (int argc, char *argv[]) {
+// 1. Finding and opening all the specified files, including directory traversal
+// 2. Reading the file and generating a sequence of position-annotated words
+// 3. Checking whether a word is contained in the dictionary
 
-    // if (argc < 3) {
-    //     perror("error");
-    //     return 1;
-    // }
+int binarySearch(char *buffer, char *word, off_t size);
 
-    int dictFile = open(argv[1], O_RDONLY);
+    int spellCheckFile(const char *filePath, size_t bufferSize, 
+        char *wordBuffer, size_t wordBufferSize);
 
-    if (dictFile < 0) {
-        printf("bruh");
-        perror("Error opening file");
+int main(int argc, char *argv[]) {
+
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <dictionary_file>\n", argv[0]);
         return 1;
     }
 
-    char dictionary[MAX_NUM_OF_WORDS][MAX_WORD_SIZE];
-    char *buffer = (char *) malloc(MAX_WORD_SIZE);
+    int dictFile = open(argv[1], O_RDONLY);
+    if (dictFile < 0) {
+        fprintf(stderr, "Error opening file: %s\n", strerror(errno));
+        return 1;
+    }
+
+    struct stat dictStat;
+    if (stat(argv[1], &dictStat) != 0) {
+        fprintf(stderr, "Error getting file information: %s\n", strerror(errno));
+        return 1;
+    }
+
+    off_t fileSize = dictStat.st_size;
+
+    char *buffer = (char *) malloc((int)fileSize); 
+    int total_bytes_read = 0;
     int bytes_read;
-    bytes_read = read(dictFile, buffer, MAX_WORD_SIZE - 1);
 
-    printf("%s", buffer);
-
-
-
-
-     // Read from the file until EOF is reached
-    // while ((bytes_read = read(dictFile, buffer, MAX_WORD_SIZE - 1)) > 0) {
-
-    // }
-
-    free(buffer);
-    
-
-    // for (int i = 2; i <= argc; i++) {
-
-    //     struct stat pathStat;
-    //     int r = stat(argv[i], &pathStat);
-
-    //     if (r < 0) { 
-    //         perror("Error checking file/directory");
-    //         return 1;
-
-    //     }
-    //     if (S_ISREG(pathStat.st_mode)) {
-    //     // regular file
-
-    //     process_file(argv[i]);
-
-    //     } else if (S_ISDIR(pathStat.st_mode)) {
-    //     // directory
-    //     } else {
-
-    //     }
-
-    // }
-
-
+    bytes_read = read(dictFile, buffer + total_bytes_read, (int)fileSize);
+    char *bruh = "apple";
+    int searchResult = binarySearch(buffer, bruh, fileSize);
 
     close(dictFile);
 
 
-}
+    for (int i = 2; i < argc; i++) {
+        struct stat fileStat;
+        if (stat(argv[i], &fileStat) == 0) {
+            if (S_ISREG(fileStat.st_mode)) {
+                printf("%s is a regular file.\n", argv[i]);
+                ssize_t bufferSize = 100;
+                char* wordBuffer = (char*)malloc(bufferSize);
+                int result = spellCheckFile(argv[i], 1024, buffer, bufferSize);
 
-    void process_file(const char *filename) {
-        int file = open(filename, O_RDONLY);
-        if (file < 0) {
-            perror("Error opening file");
-            return;
+                // Here you can perform operations specific to regular files
+            } else if (S_ISDIR(fileStat.st_mode)) {
+                printf("%s is a directory.\n", argv[i]);
+                // Here you can perform operations specific to directories
+            } else {
+                printf("%s is neither a regular file nor a directory.\n", argv[i]);
+            }
+        } else {
+            fprintf(stderr, "Error getting file information for %s: %s\n", argv[i], strerror(errno));
         }
-
-        char word[MAX_WORD_SIZE]; // Buffer to store the word
-
-        // Read words from the file until EOF is reached
-        while (scanf("%99s", word) == 1) {
-            // Process the word (e.g., check spelling)
-        }
-
-        close(file);
     }
 
 
+    free(buffer);
+
+    // Other code...
+
+    return 0;
+}
 
 
-// 1. Finding and opening all the specified files, including directory traversal
+    int binarySearch(char *buffer, char *word, off_t size) {
+        int low = 0;
+        int high = (int)size - 1;
+        int mid = (low + high) / 2;
 
-// 2. Reading the file and generating a sequence of position-annotated words
-// 3. Checking whether a word is contained in the dictionary
+        while (low < high) {
+            mid = (low + high) / 2;
+            char* midWord = buffer + mid;
+            while (*(midWord-1) != '\n' && *(midWord-1) != '\0') {
+                midWord--;
+            }
+
+            char* endWord = midWord;
+            while (*endWord != '\n' && *endWord != '\0') {
+                endWord++;
+            }
+
+            // Print or process the word
+            printf("Word: ");
+            for (char* p = midWord; p < endWord; ++p) {
+                putchar(*p);
+            }
+            putchar('\n');
+
+            if (strncmp(midWord, word, endWord - midWord) == 0) {
+                // Word found
+                printf("FOUND WORD \n");
+                return 1;
+            } else if (strncmp(midWord, word, endWord - midWord) < 0) {
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }            
+
+        }
+        printf("COULDNT FIND IT \n");
+        return -1;
+
+    }
+
+    int spellCheckFile(const char *path, size_t bufferSize, char *wordBuffer, size_t wordBufferSize) {
+        int fd = open(path, O_RDONLY);
+        if (fd < 0) {
+            fprintf(stderr, "Error opening file: %s\n", strerror(errno));
+            return 1;
+        }
+        char buffer[bufferSize]; // Buffer for reading data from file
+        ssize_t bytes_read;
+        size_t wordLength = 0;
+        while ((bytes_read = read(fd, buffer, bufferSize)) > 0) {
+            for (ssize_t i = 0; i < bytes_read; i++) {
+                char ch = buffer[i];
+                if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+                    // If the character is a letter, add it to the word buffer
+                    if (wordLength < wordBufferSize - 1) {
+                        wordBuffer[wordLength++] = ch;
+                    } else {
+                        // Word buffer overflow, handle error or resize buffer as needed
+                    }
+                } else {
+                    // If the character is not a letter (e.g., space, punctuation),
+                    // process the word and reset the word buffer
+                    if (wordLength > 0) {
+                        // Null-terminate the word
+                        wordBuffer[wordLength] = '\0';
+                        // Handle the word (e.g., spell-check it)
+                        // For now, just print it
+                        printf("Word: %s\n", wordBuffer);
+                        wordLength = 0; // Reset word length for the next word
+                    }
+                }
+            }
+        }
+
+        close(fd);
+        return 0;
+
+
+
+    }
