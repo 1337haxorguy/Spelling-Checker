@@ -15,7 +15,7 @@
 int binarySearch(char *buffer, char *word, off_t size);
 
     int spellCheckFile(const char *filePath, size_t bufferSize, 
-        char *wordBuffer, size_t wordBufferSize);
+        char *wordBuffer, size_t wordBufferSize, char* dictBuffer, off_t fileSize);
 
 int main(int argc, char *argv[]) {
 
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
                 printf("%s is a regular file.\n", argv[i]);
                 ssize_t bufferSize = 100;
                 char* wordBuffer = (char*)malloc(bufferSize);
-                int result = spellCheckFile(argv[i], 1024, buffer, bufferSize);
+                int result = spellCheckFile(argv[i], 1024, buffer, bufferSize, buffer, fileSize);
 
                 // Here you can perform operations specific to regular files
             } else if (S_ISDIR(fileStat.st_mode)) {
@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
 
     }
 
-    int spellCheckFile(const char *path, size_t bufferSize, char *wordBuffer, size_t wordBufferSize) {
+    int spellCheckFile(const char *path, size_t bufferSize, char *wordBuffer, size_t wordBufferSize, char* dictBuffer, off_t fileSize) {
         int fd = open(path, O_RDONLY);
         if (fd < 0) {
             fprintf(stderr, "Error opening file: %s\n", strerror(errno));
@@ -147,6 +147,7 @@ int main(int argc, char *argv[]) {
                         // Handle the word (e.g., spell-check it)
                         // For now, just print it
                         printf("Word: %s\n", wordBuffer);
+                        binarySearch(buffer, wordBuffer, fileSize);
                         wordLength = 0; // Reset word length for the next word
                     }
                 }
