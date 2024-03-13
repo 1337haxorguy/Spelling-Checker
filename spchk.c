@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
                         // Handle the word (e.g., spell-check it)
                         // For now, just print it
                         printf("Word: %s\n", wordBuffer);
-                        binarySearch(buffer, wordBuffer, fileSize);
+                        binarySearch(dictBuffer, wordBuffer, fileSize);
                         wordLength = 0; // Reset word length for the next word
                     }
                 }
