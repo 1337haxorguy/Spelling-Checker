@@ -17,6 +17,8 @@ int binarySearch(char *buffer, char *word, off_t size);
 int spellCheckFile(const char *filePath, size_t bufferSize, 
     char *wordBuffer, size_t wordBufferSize, char* dictBuffer, off_t fileSize);
 
+int spellCheckDirectory(const char *dirPath, char *dictBuffer, off_t fileSize);
+
 int main(int argc, char *argv[]) {
 
     if (argc < 3) {
@@ -24,42 +26,45 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Open first argument, path to dictionary
     int dictFile = open(argv[1], O_RDONLY);
-    if (dictFile < 0) {
+    if (dictFile < 0) { // If doesn't open
         fprintf(stderr, "Error opening file: %s\n", strerror(errno));
         return 1;
     }
 
-    struct stat dictStat;
+    struct stat dictStat; // Create stat struct to dictionary file
     if (stat(argv[1], &dictStat) != 0) {
         fprintf(stderr, "Error getting file information: %s\n", strerror(errno));
         return 1;
     }
 
-    off_t fileSize = dictStat.st_size;
+    off_t fileSize = dictStat.st_size; // Get dictionary file size
 
-    char *buffer = (char *) malloc((int)fileSize); 
+    char *buffer = (char *) malloc((int)fileSize); // Allocate a buffer to hold amount of bytes as file
     int total_bytes_read = 0;
     int bytes_read;
 
-    bytes_read = read(dictFile, buffer + total_bytes_read, (int)fileSize);
+    bytes_read = read(dictFile, buffer + total_bytes_read, (int)fileSize); // Putting all data into buffer array
 
     close(dictFile);
 
-
-    for (int i = 2; i < argc; i++) {
+    // Loop through remaining args
+    for (int i = 2; i < argc; i++) { 
         struct stat fileStat;
         if (stat(argv[i], &fileStat) == 0) {
-            if (S_ISREG(fileStat.st_mode)) {
+            if (S_ISREG(fileStat.st_mode)) { // File is regular
                 printf("%s is a regular file.\n", argv[i]);
                 ssize_t bufferSize = 100;
                 char* wordBuffer = (char*)malloc(bufferSize);
-                int result = spellCheckFile(argv[i], 1024, buffer, bufferSize, buffer, fileSize);
+                int result = spellCheckFile(argv[i], 1024, buffer, bufferSize, buffer, fileSize); // Spell check file with buffer array
                 free(wordBuffer);
-                // Here you can perform operations specific to regular files
-            } else if (S_ISDIR(fileStat.st_mode)) {
+
+            } else if (S_ISDIR(fileStat.st_mode)) { // File is a directory
                 printf("%s is a directory.\n", argv[i]);
-                // Here you can perform operations specific to directories
+                int result = spellCheckDirectory(argv[i], buffer, fileSize);
+
+                
             } else {
                 printf("%s is neither a regular file nor a directory.\n", argv[i]);
             }
@@ -125,12 +130,12 @@ int binarySearch(char *buffer, char *word, off_t size) {
             return 1;
         }
 
-        char buffer[bufferSize]; // Buffer for reading data from file
+        char *buffer = (char *)malloc(bufferSize); // Buffer for reading data from file
         ssize_t bytes_read;
         size_t wordLength = 0;
         int lineNum = 1;
         int colNum = 1;  
-        while ((bytes_read = read(fd, buffer, bufferSize)) > 0) {
+        while ((bytes_read = read(fd, buffer, bufferSize)) > 0) { // Read bytes from file into buffer
             for (ssize_t i = 0; i < bytes_read; i++) {
                 char ch = buffer[i];
                 if (ch == '\n') {
@@ -164,6 +169,8 @@ int binarySearch(char *buffer, char *word, off_t size) {
                 }
             }
         }
+
+
 
         close(fd);
         return 0;
