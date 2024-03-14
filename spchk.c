@@ -96,18 +96,15 @@ int binarySearch(char *buffer, char *word, off_t size) {
             midWord--;
         }
 
-        char* endWord = midWord;
-        while (*endWord != '\n' && *endWord != '\0') {
-            endWord++;
-        }
+        char* endWord = midWord + wordSize;
+        
 
 
         // Print or process the word
 
-        if (strncmp(midWord, word, wordSize) == 0) {
+        if (strncmp(midWord, word, wordSize) == 0 && *(endWord) == '\n') {
             // Word found
             printf("word found: %s \n", word);
-            printf("%d\n", wordSize);
 
             return 1;
         } else if (strncmp(midWord, word, wordSize) < 0) {
@@ -117,7 +114,6 @@ int binarySearch(char *buffer, char *word, off_t size) {
         }            
 
     }
-    printf("word NOT found: %s \n", word);
     return -1;
 }
     
