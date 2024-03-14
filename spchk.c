@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>  // Include errno.h for error handling
 #include <fcntl.h>
+#include <dirent.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <ctype.h>
@@ -14,71 +15,73 @@
 
 int binarySearch(char *buffer, char *word, off_t size);
 
-int spellCheckFile(const char *filePath, size_t bufferSize, 
-    char *wordBuffer, size_t wordBufferSize, char* dictBuffer, off_t fileSize);
+int spellCheckFile(const char *path, char* dictBuffer, off_t dictFileSize);
 
-int spellCheckDirectory(const char *dirPath, char *dictBuffer, off_t fileSize);
+int spellCheckDirectory(const char *dirPath, char *dictBuffer, off_t dictFileSize);
 
 int main(int argc, char *argv[]) {
 
     if (argc < 3) {
         fprintf(stderr, "Usage: %s <dictionary_file>\n", argv[0]);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     // Open first argument, path to dictionary
     int dictFile = open(argv[1], O_RDONLY);
     if (dictFile < 0) { // If doesn't open
         fprintf(stderr, "Error opening file: %s\n", strerror(errno));
-        return 1;
+        return EXIT_FAILURE;
     }
 
     struct stat dictStat; // Create stat struct to dictionary file
     if (stat(argv[1], &dictStat) != 0) {
         fprintf(stderr, "Error getting file information: %s\n", strerror(errno));
-        return 1;
+        return EXIT_FAILURE;
     }
 
-    off_t fileSize = dictStat.st_size; // Get dictionary file size
+    off_t dictFileSize = dictStat.st_size; // Get dictionary file size
 
-    char *buffer = (char *) malloc((int)fileSize); // Allocate a buffer to hold amount of bytes as file
+    char *dictBuffer = (char *) malloc((int)dictFileSize); // Allocate a buffer to hold amount of bytes as file
     int total_bytes_read = 0;
     int bytes_read;
 
-    bytes_read = read(dictFile, buffer + total_bytes_read, (int)fileSize); // Putting all data into buffer array
+    bytes_read = read(dictFile, dictBuffer + total_bytes_read, (int)dictFileSize); // Putting all data into buffer array
 
     close(dictFile);
 
     // Loop through remaining args
     for (int i = 2; i < argc; i++) { 
         struct stat fileStat;
-        if (stat(argv[i], &fileStat) == 0) {
-            if (S_ISREG(fileStat.st_mode)) { // File is regular
-                printf("%s is a regular file.\n", argv[i]);
-                ssize_t bufferSize = 100;
-                char* wordBuffer = (char*)malloc(bufferSize);
-                int result = spellCheckFile(argv[i], 1024, buffer, bufferSize, buffer, fileSize); // Spell check file with buffer array
-                free(wordBuffer);
+        int result;
 
-            } else if (S_ISDIR(fileStat.st_mode)) { // File is a directory
-                printf("%s is a directory.\n", argv[i]);
-                int result = spellCheckDirectory(argv[i], buffer, fileSize);
+        if (stat(argv[i], &fileStat) != 0) { 
+            fprintf("Error getting file information for %s: %s\n", argv[i], strerror(errno));
+            return EXIT_FAILURE;
+        }
 
-                
-            } else {
-                printf("%s is neither a regular file nor a directory.\n", argv[i]);
-            }
+        if (S_ISREG(fileStat.st_mode)) { // File is regular
+            printf("%s is a regular file.\n", argv[i]); // Has to be removed in final
+            result = spellCheckFile(argv[i], dictBuffer, dictFileSize); // Spell check file with buffer array
+
+        } else if (S_ISDIR(fileStat.st_mode)) { // File is a directory
+            printf("%s is a directory.\n", argv[i]); // Has to be removed in final
+            result = spellCheckDirectory(argv[i], dictBuffer, dictFileSize);
+            
         } else {
-            fprintf(stderr, "Error getting file information for %s: %s\n", argv[i], strerror(errno));
+            printf("%s is neither a regular file nor a directory.\n", argv[i]); // Has to be removed in final
+        }
+
+        if (result == -1) {
+            return EXIT_FAILURE;
         }
     }
 
 
-    free(buffer);
+    free(dictBuffer);
 
     // Other code...
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 
@@ -119,16 +122,21 @@ int binarySearch(char *buffer, char *word, off_t size) {
         }            
 
     }
+    
     return -1;
 }
     
 
-    int spellCheckFile(const char *path, size_t bufferSize, char *wordBuffer, size_t wordBufferSize, char* dictBuffer, off_t fileSize) {
+    int spellCheckFile(const char *path, char* dictBuffer, off_t dictFileSize) {
         int fd = open(path, O_RDONLY);
         if (fd < 0) {
-            fprintf(stderr, "Error opening file: %s\n", strerror(errno));
-            return 1;
-        }
+            close(fd);
+            return -1;
+        } 
+
+        size_t bufferSize = 1024;
+        size_t wordBufferSize = 100;
+        char* wordBuffer = (char*)malloc(wordBufferSize);
 
         char *buffer = (char *)malloc(bufferSize); // Buffer for reading data from file
         ssize_t bytes_read;
@@ -170,9 +178,50 @@ int binarySearch(char *buffer, char *word, off_t size) {
             }
         }
 
-
-
         close(fd);
+        free(wordBuffer);
         return 0;
+    }
+
+    int spellCheckDirectory(const char *dirPath, char *dictBuffer, off_t dictFileSize) {
+        DIR *dir = opendir(dirPath);
+        if (dir == NULL) {
+            return -1;
+        }
+
+
+        struct dirent *entry;
+
+        // Loop through entries in directory
+        while ((entry = readdir(dir)) != NULL) {
+            if (entry->d_name[0] == ',') continue; // Skip entries starting with .
+
+            // Construct path for entry
+            char path[1024];
+            strcpy(path, dirPath);
+            strcat(path, "/");
+            strcat(path, entry->d_name);
+
+            // Check if file or dir
+            struct stat entryStat;
+
+            if (stat(path, &entryStat) == 0) {
+                if (S_ISDIR(entryStat.st_mode)) {
+                    spellCheckDirectory(path, dictBuffer, dictFileSize); // Directory so call recursively
+                } else if (S_ISREG(entryStat.st_mode)) {
+                    // Regular file, make sure it ends with .txt
+                    if (strstr(entry->d_name, ".txt") != NULL) { // Saw strstr online, pretty sure we can use??
+                        // Call spell check
+                        spellCheckFile(path, dictBuffer, dictFileSize);
+                    }
+                }
+            } else {
+                return -1;
+            }
+        }
+
+        closedir(dir);
+        return 0;
+
 
     }
