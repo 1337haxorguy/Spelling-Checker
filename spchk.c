@@ -13,7 +13,7 @@
 // 2. Reading the file and generating a sequence of position-annotated words
 // 3. Checking whether a word is contained in the dictionary
 
-int binarySearch(char *buffer, char *word, off_t size);
+int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize);
 
 int spellCheckFile(const char *path, char* dictBuffer, off_t dictFileSize);
 
@@ -46,6 +46,10 @@ int main(int argc, char *argv[]) {
     int bytes_read;
 
     bytes_read = read(dictFile, dictBuffer + total_bytes_read, (int)dictFileSize); // Putting all data into buffer array
+    
+    if (bytes_read <= 0) {
+        return EXIT_FAILURE;
+    } 
 
     close(dictFile);
 
@@ -55,7 +59,7 @@ int main(int argc, char *argv[]) {
         int result;
 
         if (stat(argv[i], &fileStat) != 0) { 
-            fprintf("Error getting file information for %s: %s\n", argv[i], strerror(errno));
+            fprintf(stderr, "Error getting file information for %s: %s\n", argv[i], strerror(errno));
             return EXIT_FAILURE;
         }
 
@@ -85,21 +89,21 @@ int main(int argc, char *argv[]) {
 }
 
 
-int binarySearch(char *buffer, char *word, off_t size) {
+int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
     int wordSize = 0;
-    char* wordPtr = word;
+    char* wordPtr = wordBuffer;
     while (*wordPtr != '\0') {
         wordPtr++;
         wordSize++;
     }
 
     int low = 0;
-    int high = (int)size - 1;
+    int high = (int)dictBufferSize - 1;
     int mid;
 
     while (low <= high) {  // Use <= instead of <
         mid = (low + high) / 2;
-        char* midWord = buffer + mid;
+        char* midWord = dictBuffer + mid;
         while (*(midWord-1) != '\n' && *(midWord-1) != '\0') {
             midWord--;
         }
@@ -110,12 +114,12 @@ int binarySearch(char *buffer, char *word, off_t size) {
 
         // Print or process the word
 
-        if (strncmp(midWord, word, wordSize) == 0 && *(endWord) == '\n') {
+        if (strncmp(midWord, wordBuffer, wordSize) == 0 && *(endWord) == '\n') {
             // Word found
-            printf("word found: %s \n", word);
+            printf("word found: %s \n", wordBuffer);
 
             return 1;
-        } else if (strncmp(midWord, word, wordSize) < 0) {
+        } else if (strncmp(midWord, wordBuffer, wordSize) < 0) {
             low = mid + 1;
         } else {
             high = mid - 1;
@@ -168,7 +172,7 @@ int binarySearch(char *buffer, char *word, off_t size) {
                         wordBuffer[wordLength] = '\0';
                         // Handle the word (e.g., spell-check it)
                         // For now, just print it
-                        int foundWord = binarySearch(dictBuffer, wordBuffer, fileSize);
+                        int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
                         if (foundWord < 0) {
                             printf("%s (%d,%d): %s\n", path, lineNum, colNum, wordBuffer);
                         }
@@ -180,6 +184,7 @@ int binarySearch(char *buffer, char *word, off_t size) {
 
         close(fd);
         free(wordBuffer);
+        free(buffer);
         return 0;
     }
 
@@ -194,7 +199,7 @@ int binarySearch(char *buffer, char *word, off_t size) {
 
         // Loop through entries in directory
         while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_name[0] == ',') continue; // Skip entries starting with .
+            if (entry->d_name[0] == '.') continue; // Skip entries starting with .
 
             // Construct path for entry
             char path[1024];
