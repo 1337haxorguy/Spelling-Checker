@@ -101,7 +101,7 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
     int high = (int)dictBufferSize - 1;
     int mid;
 
-    while (low <= high) {  // Use <= instead of <
+    while (low <= high) { 
         mid = (low + high) / 2;
         char* midWord = dictBuffer + mid;
         while (*(midWord-1) != '\n' && *(midWord-1) != '\0') {
@@ -110,10 +110,6 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
 
         char* endWord = midWord + wordSize;
         
-
-
-        // Print or process the word
-
         if (strncmp(midWord, wordBuffer, wordSize) == 0 && *(endWord) == '\n') {
             // Word found
             printf("word found: %s \n", wordBuffer);
@@ -145,7 +141,7 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
         char *buffer = (char *)malloc(bufferSize); // Buffer for reading data from file
         ssize_t bytes_read;
         size_t wordLength = 0;
-        int lineNum = 1;
+        int lineNum = 0;
         int colNum = 1;  
         while ((bytes_read = read(fd, buffer, bufferSize)) > 0) { // Read bytes from file into buffer
             for (ssize_t i = 0; i < bytes_read; i++) {
@@ -165,8 +161,6 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
                         // Word buffer overflow, handle error or resize buffer as needed
                     }
                 } else {
-                    // If the character is not a letter (e.g., space, punctuation),
-                    // process the word and reset the word buffer
                     if (wordLength > 0) {
                     int i = 0;
                     while (!isalpha(wordBuffer[i])) {
