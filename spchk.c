@@ -157,7 +157,7 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
                     colNum++; // Increment column number
                 }
 
-                if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+                if ((!isspace(ch) && ch != '-')) {
                     // If the character is a letter, add it to the word buffer
                     if (wordLength < wordBufferSize - 1) {
                         wordBuffer[wordLength++] = ch;
@@ -168,8 +168,21 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
                     // If the character is not a letter (e.g., space, punctuation),
                     // process the word and reset the word buffer
                     if (wordLength > 0) {
-                        // Null-terminate the word
-                        wordBuffer[wordLength] = '\0';
+                    int i = 0;
+                    while (!isalpha(wordBuffer[i])) {
+                        i++;
+                    }
+                    // Shift the word to the left to remove non-alphabetic characters
+                    memmove(wordBuffer, wordBuffer + i, wordLength - i + 1);
+                    wordLength -= i;
+
+                    // Remove non-alphabetic characters from the end of the word
+                    int j = 0;
+                    while (wordLength > 0 && !isalpha(wordBuffer[wordLength - 1])) {
+                        j++;
+                        wordLength--;
+                    }
+                    wordBuffer[wordLength] = '\0';
                         // Handle the word (e.g., spell-check it)
                         // For now, just print it
                         int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
