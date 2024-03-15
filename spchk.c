@@ -181,8 +181,29 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
                         // For now, just print it
                         int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
                         if (foundWord < 0) {
+                            // Convert first letter to uppercase and the rest to lowercase
+                            char *capitalizedWord = strdup(wordBuffer); 
+                            if (capitalizedWord != NULL) {
+                                capitalizedWord[0] = toupper(capitalizedWord[0]); // Capitalize first letter
+                                for (int i = 1; i < strlen(capitalizedWord); i++) {
+                                    capitalizedWord[i] = tolower(capitalizedWord[i]); // Lowercase the rest
+                                }
+                                foundWord = binarySearch(dictBuffer, capitalizedWord, dictFileSize);
+                                free(capitalizedWord); 
+                            }
+                        } else if (foundWord < 0) {
+                            // Convert the word to uppercase
+                            for (size_t i = 0; i < strlen(wordBuffer); i++) {
+                                wordBuffer[i] = toupper(wordBuffer[i]);
+                            }
+                            foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
+                        }
+
+                        // If still 0
+                        if (foundWord < 0) {
                             printf("%s (%d,%d): %s\n", path, lineNum, colNum, wordBuffer);
                         }
+
                         wordLength = 0; // Reset word length for the next word
                     }
                 }
