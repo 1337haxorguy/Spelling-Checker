@@ -177,8 +177,7 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
                         wordLength--;
                     }
                     wordBuffer[wordLength] = '\0';
-                        // Handle the word (e.g., spell-check it)
-                        // For now, just print it
+
                         int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
                         if (foundWord < 0) {
                             // Convert first letter to uppercase and the rest to lowercase
@@ -191,12 +190,13 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
                                 foundWord = binarySearch(dictBuffer, capitalizedWord, dictFileSize);
                                 free(capitalizedWord); 
                             }
-                        } else if (foundWord < 0) {
-                            // Convert the word to uppercase
+                        } 
+                        if (foundWord < 0) {
+                            char *lowerCaseWord = strdup(wordBuffer); 
                             for (size_t i = 0; i < strlen(wordBuffer); i++) {
-                                wordBuffer[i] = toupper(wordBuffer[i]);
+                                lowerCaseWord[i] = tolower(lowerCaseWord[i]);
                             }
-                            foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
+                            foundWord = binarySearch(dictBuffer, lowerCaseWord, dictFileSize);
                         }
 
                         // If still 0
