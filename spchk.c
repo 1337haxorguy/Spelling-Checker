@@ -13,11 +13,13 @@
 // 2. Reading the file and generating a sequence of position-annotated words
 // 3. Checking whether a word is contained in the dictionary
 
-int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize);
+int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize, int caseSensitive);
 
 int spellCheckFile(const char *path, char* dictBuffer, off_t dictFileSize);
 
 int spellCheckDirectory(const char *dirPath, char *dictBuffer, off_t dictFileSize);
+
+int checkWord(char *word, char *dictBuffer, off_t dictFileSize, int wordLength);
 
 int main(int argc, char *argv[]) {
 
@@ -88,8 +90,8 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-
-int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
+// Using parameter 1 is same as it used to be
+int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize, int caseSensitive) {
     int wordSize = 0;
     char* wordPtr = wordBuffer;
     while (*wordPtr != '\0') {
@@ -102,28 +104,147 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
     int mid;
 
     while (low <= high) { 
-        mid = (low + high) / 2;
-        char* midWord = dictBuffer + mid;
-        while (*(midWord-1) != '\n' && *(midWord-1) != '\0') {
-            midWord--;
+        mid = low + (high-low) / 2;
+
+        // Find start of word
+        while (mid > 0 && dictBuffer[mid-1] != '\n') mid--;
+
+        // Find end of word
+        int end = mid;
+        while (end < dictBufferSize && dictBuffer[end] != '\n') end++;
+
+        int cmpResult = caseSensitive ? strncmp(dictBuffer + mid, wordBuffer, wordSize) : strncasecmp(dictBuffer + mid, wordBuffer, wordSize); 
+        
+        if (cmpResult == 0) {
+            if (end - mid != wordSize || (end - mid == wordSize && dictBuffer[mid + wordSize] != '\n')) {
+                cmpResult = dictBuffer[mid + wordSize] - '\n'; 
+            } 
         }
 
-        char* endWord = midWord + wordSize;
-        
-        if (strncmp(midWord, wordBuffer, wordSize) == 0 && *(endWord) == '\n') {
+        if (cmpResult == 0) {
             // Word found
-            printf("word found: %s \n", wordBuffer);
-
-            return 1;
-        } else if (strncmp(midWord, wordBuffer, wordSize) < 0) {
-            low = mid + 1;
+            return mid; // Return start index
+        } else if (cmpResult < 0) {
+            low = end + 1;
         } else {
             high = mid - 1;
         }            
-
     }
-    
     return -1;
+}
+
+int checkWord(char *word, char *dictBuffer, off_t dictFileSize, int wordLength) {
+
+    printf("Checking word: %s\n", word);
+    if (binarySearch(dictBuffer, word, dictFileSize, 1) >= 0) {
+        return 1; // 1. Check for exact match first
+    }
+
+    // If not try insensitive
+    int index = binarySearch(dictBuffer, word, dictFileSize, 1);
+
+    printf("Index: %d\n", index);
+
+    if (index >= 0) {
+        int dictWordLength = 0;
+        while (dictBuffer[index + dictWordLength] != '\n' && dictBuffer[index + dictWordLength] != '\0') {
+            dictWordLength++;
+        }
+
+        // Get the matched word from the dictionary
+        char *dictWord = malloc(dictWordLength+1);
+        strncpy(dictWord, dictBuffer + index, dictWordLength);
+        dictWord[dictWordLength] = '\0';
+
+        // If exact match return
+        
+        if (strcmp(dictWord, word) == 0) {
+            // printf("Exact match verified for word '%s'\n", word);
+            free(dictWord);
+            return 1;
+        } else {
+            // printf("Exact match verification failed for word '%s' against dictionary word '%s'\n", word, dictWord);
+        }
+
+        // Check for capitalization
+        int hasUpper = 0;
+        for (int i = 0; i < dictWordLength; i++) {
+            if (isupper(dictWord[i])) {
+                hasUpper = 1;
+                break;
+            }
+        }
+
+        printf("Uppercase : %d\n", hasUpper);
+
+        if (!hasUpper) {
+             // Convert to all lowercase
+            char *lowerCaseWord = strdup(word);
+
+            for (int i = 0; i < wordLength; i++) {
+                lowerCaseWord[i] = tolower(lowerCaseWord[i]);
+            }
+
+            // Check if word is all uppercase
+            int allUpper = 1;
+            for (int i = 0; i < wordLength; i++) {
+                if (!isupper(word[i])) {
+                    allUpper = 0;
+                    break;
+                }
+            }
+
+            // Check if word is capitalized
+            int isCapital;
+
+            if (isupper(word[0])) {
+                isCapital = 1;
+                for (int i = 1; i < wordLength; i++) {
+                    if (isupper(word[i])) {
+                        isCapital = 0;
+                        break;
+                    }
+                }
+            } else {
+                isCapital = 0;
+            }
+
+            // Valid if all upper and lowercase is in dictionary
+            if ((allUpper && binarySearch(dictBuffer, lowerCaseWord, dictFileSize, 1) >= 0)) {
+                free(lowerCaseWord);
+                free(dictWord);
+                return 1; // Matching lowercase version is found
+            }
+
+            // Valid if not all uppercase but only first letter is
+            if (!allUpper) {
+                if (isCapital && binarySearch(dictBuffer, lowerCaseWord, dictFileSize, 1) >= 0) {
+                    free(lowerCaseWord);
+                    free(dictWord);
+                    return 1;
+                }
+            }
+
+            free(lowerCaseWord);
+        } 
+        else {
+            printf("Capital letters present in dictionary word. Verifying '%s' against '%s'.\n", word, dictWord);
+
+            for (int i = 0; i < wordLength; i++) {
+                if (!isupper(word[i])) {
+                    free(dictWord);
+                    return 0;
+                }
+            }
+
+            return 1; // All uppercase
+        }
+
+        free(dictWord);
+    }
+
+    return 0; // No match found
+
 }
     
 
@@ -140,7 +261,7 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
 
         char *buffer = (char *)malloc(bufferSize); // Buffer for reading data from file
         ssize_t bytes_read;
-        size_t wordLength = 0;
+        int wordLength = 0;
         int lineNum = 0;
         int colNum = 1;  
         while ((bytes_read = read(fd, buffer, bufferSize)) > 0) { // Read bytes from file into buffer
@@ -177,32 +298,11 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
                         wordLength--;
                     }
                     wordBuffer[wordLength] = '\0';
-
-                        int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
-                        if (foundWord < 0) {
-                            // Convert first letter to uppercase and the rest to lowercase
-                            char *capitalizedWord = strdup(wordBuffer); 
-                            if (capitalizedWord != NULL) {
-                                capitalizedWord[0] = toupper(capitalizedWord[0]); // Capitalize first letter
-                                for (int i = 1; i < strlen(capitalizedWord); i++) {
-                                    capitalizedWord[i] = tolower(capitalizedWord[i]); // Lowercase the rest
-                                }
-                                foundWord = binarySearch(dictBuffer, capitalizedWord, dictFileSize);
-                                free(capitalizedWord); 
-                            }
-                        } 
-                        if (foundWord < 0) {
-                            char *lowerCaseWord = strdup(wordBuffer); 
-                            for (size_t i = 0; i < strlen(wordBuffer); i++) {
-                                lowerCaseWord[i] = tolower(lowerCaseWord[i]);
-                            }
-                            foundWord = binarySearch(dictBuffer, lowerCaseWord, dictFileSize);
-                        }
-
-                        // If still 0
-                        if (foundWord < 0) {
-                            printf("%s (%d,%d): %s\n", path, lineNum, colNum, wordBuffer);
-                        }
+                        
+                    
+                    if (checkWord(wordBuffer, dictBuffer, dictFileSize, wordLength) == 0) {
+                        printf("%s (%d,%d): %s\n", path, lineNum, colNum, wordBuffer);
+                    }
 
                         wordLength = 0; // Reset word length for the next word
                     }
