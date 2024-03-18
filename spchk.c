@@ -13,14 +13,45 @@
 // 2. Reading the file and generating a sequence of position-annotated words
 // 3. Checking whether a word is contained in the dictionary
 
-int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize, int caseSensitive);
+typedef struct {
+    char *original; // Original word
+    char *modified; // Lowercased word
+} DictionaryEntry;
 
-int spellCheckFile(const char *path, char* dictBuffer, off_t dictFileSize);
 
-int spellCheckDirectory(const char *dirPath, char *dictBuffer, off_t dictFileSize);
+DictionaryEntry* binarySearch(const char *word, DictionaryEntry *entries, size_t numDictEntries);
 
-int checkWord(char *word, char *dictBuffer, off_t dictFileSize, int wordLength);
+int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t numDictWords);
 
+int spellCheckDirectory(const char *dirPath, DictionaryEntry *dictionaryEntries, size_t numDictWords);
+
+int checkWord(char *word, DictionaryEntry *dictionaryEntires, size_t numDictWords);
+
+
+// For binary search
+int compareEntries(const void *a, const void *b) {
+    const char *word = (const char *)a;
+    const DictionaryEntry *entry = (const DictionaryEntry *)b;
+    return  strcmp(word, entry->modified); // Compares lowercase version of words
+}
+
+int compareDictionaryEntry(const void *a, const void *b) {
+    const DictionaryEntry *entryA = (const DictionaryEntry *)a;
+    const DictionaryEntry *entryB = (const DictionaryEntry *)b;
+    return strcmp(entryA->modified, entryB->modified);
+}
+
+// Makes string lowercase
+char *toLower(const char *str) {
+    char *lowerCaseStr = malloc(strlen(str) + 1);
+    char *p = lowerCaseStr;
+    while (*str != '\0') {
+        *p++ = tolower((unsigned char)* str++);
+    }
+    *p = '\0';
+    return lowerCaseStr; 
+}
+ 
 int main(int argc, char *argv[]) {
 
     if (argc < 3) {
@@ -53,6 +84,33 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     } 
 
+    // Count words in dict
+    size_t numdDictWords = 0;
+    for (char *p = dictBuffer; *p; p++) {
+        if (*p == '\n') numdDictWords++;
+    }
+
+    // DictionaryEntry array
+    DictionaryEntry *dictionaryEntries = malloc(sizeof(DictionaryEntry) * numdDictWords);
+    if (!dictionaryEntries) {
+        close(dictFile);
+        free(dictBuffer);
+        return EXIT_FAILURE;
+    }
+
+    // Populate dictionaryEntries
+    char *line = strtok(dictBuffer, "\n");
+    size_t index = 0;
+    while (line != NULL && index < numdDictWords) {
+        dictionaryEntries[index].original = strdup(line);
+        dictionaryEntries[index].modified = toLower(line);
+        line = strtok(NULL, "\n");
+        index++;
+    }
+
+    // Sort dictionaryEntries
+    qsort(dictionaryEntries, numdDictWords, sizeof(DictionaryEntry), compareDictionaryEntry);
+
     close(dictFile);
 
     // Loop through remaining args
@@ -67,11 +125,11 @@ int main(int argc, char *argv[]) {
 
         if (S_ISREG(fileStat.st_mode)) { // File is regular
             printf("%s is a regular file.\n", argv[i]); // Has to be removed in final
-            result = spellCheckFile(argv[i], dictBuffer, dictFileSize); // Spell check file with buffer array
+            result = spellCheckFile(argv[i], dictionaryEntries, numdDictWords); // Spell check file with buffer array
 
         } else if (S_ISDIR(fileStat.st_mode)) { // File is a directory
             printf("%s is a directory.\n", argv[i]); // Has to be removed in final
-            result = spellCheckDirectory(argv[i], dictBuffer, dictFileSize);
+            result = spellCheckDirectory(argv[i], dictionaryEntries, numdDictWords);
             
         } else {
             printf("%s is neither a regular file nor a directory.\n", argv[i]); // Has to be removed in final
@@ -82,330 +140,162 @@ int main(int argc, char *argv[]) {
         }
     }
 
-
+    // Free
     free(dictBuffer);
-
-    // Other code...
+    for(size_t i = 0; i < numdDictWords; i++) {
+        free(dictionaryEntries[i].original);
+        free(dictionaryEntries[i].modified);
+    }
+    free(dictionaryEntries);
 
     return EXIT_SUCCESS;
 }
 
 // Using parameter 1 is same as it used to be
-int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize, int caseSensitive) {
-    int wordSize = 0;
-    char* wordPtr = wordBuffer;
-    while (*wordPtr != '\0') {
-        wordPtr++;
-        wordSize++;
-    }
-
+DictionaryEntry* binarySearch(const char *word, DictionaryEntry *entries, size_t numDictEntries) {
     int low = 0;
-    int high = (int)dictBufferSize - 1;
-    int mid;
+    int high = numDictEntries -1;
+
 
     while (low <= high) { 
-        mid = low + (high-low) / 2;
+        size_t mid = low + (high-low) / 2;
+        int cmp = compareEntries(word, &entries[mid]);
 
-        // Find start of word
-        while (mid > 0 && dictBuffer[mid-1] != '\n') mid--;
-
-        // Find end of word
-        int end = mid;
-        while (end < dictBufferSize && dictBuffer[end] != '\n') end++;
-
-        int cmpResult = caseSensitive ? strncmp(dictBuffer + mid, wordBuffer, wordSize) : strncasecmp(dictBuffer + mid, wordBuffer, wordSize); 
-        
-        if (cmpResult == 0) {
-            if (end - mid != wordSize || (end - mid == wordSize && dictBuffer[mid + wordSize] != '\n')) {
-                cmpResult = dictBuffer[mid + wordSize] - '\n'; 
-            } 
+        if(cmp == 0) {
+            return &entries[mid]; // Word found
+        } else if (cmp < 0) {
+            high = mid - 1;
+        } else {
+            low = mid + 1;
         }
 
-        if (cmpResult == 0) {
-            // Word found
-            return mid; // Return start index
-        } else if (cmpResult < 0) {
-            low = end + 1;
-        } else {
-            high = mid - 1;
-        }            
     }
-    return -1;
+
+    return NULL;
 }
 
-int checkWord(char *word, char *dictBuffer, off_t dictFileSize, int wordLength) {
 
-    printf("Checking word: %s\n", word);
-    if (binarySearch(dictBuffer, word, dictFileSize, 1) >= 0) {
-        return 1; // 1. Check for exact match first
+int hasUpperCase(const char *str) {
+    while (*str) {
+        if (isupper((unsigned char)*str)) return 1;
+        str ++;
     }
 
-    // If not try insensitive
-    int index = binarySearch(dictBuffer, word, dictFileSize, 1);
+    return 0;
+}
 
-    printf("Index: %d\n", index);
+int isAllUpperCase(const char *str) {
+    while (*str) {
+        if (islower((unsigned char)*str)) return 0;
+        str++;
+    }
+    return 1;
+ }
 
-    if (index >= 0) {
-        int dictWordLength = 0;
-        while (dictBuffer[index + dictWordLength] != '\n' && dictBuffer[index + dictWordLength] != '\0') {
-            dictWordLength++;
-        }
+int checkWord(char *word, DictionaryEntry *dictionaryEntries, size_t numDictEntries) {
+    char *wordLower = toLower(word);
+    DictionaryEntry *foundEntry = binarySearch(wordLower, dictionaryEntries, numDictEntries);
+    free(wordLower);
 
-        // Get the matched word from the dictionary
-        char *dictWord = malloc(dictWordLength+1);
-        strncpy(dictWord, dictBuffer + index, dictWordLength);
-        dictWord[dictWordLength] = '\0';
+    if (foundEntry != NULL) {
 
-        // If exact match return
-        
-        if (strcmp(dictWord, word) == 0) {
-            // printf("Exact match verified for word '%s'\n", word);
-            free(dictWord);
+        // 1. Check for exact match
+        if (strcmp(foundEntry->original, word) == 0) {
             return 1;
-        } else {
-            // printf("Exact match verification failed for word '%s' against dictionary word '%s'\n", word, dictWord);
         }
 
-        // Check for capitalization
-        int hasUpper = 0;
-        for (int i = 0; i < dictWordLength; i++) {
-            if (isupper(dictWord[i])) {
-                hasUpper = 1;
-                break;
-            }
-        }
-
-        printf("Uppercase : %d\n", hasUpper);
-
-        if (!hasUpper) {
-             // Convert to all lowercase
-            char *lowerCaseWord = strdup(word);
-
-            for (int i = 0; i < wordLength; i++) {
-                lowerCaseWord[i] = tolower(lowerCaseWord[i]);
-            }
-
-            // Check if word is all uppercase
-            int allUpper = 1;
-            for (int i = 0; i < wordLength; i++) {
-                if (!isupper(word[i])) {
-                    allUpper = 0;
-                    break;
-                }
-            }
-
-            // Check if word is capitalized
-            int isCapital;
-
-            if (isupper(word[0])) {
-                isCapital = 1;
-                for (int i = 1; i < wordLength; i++) {
-                    if (isupper(word[i])) {
-                        isCapital = 0;
-                        break;
-                    }
-                }
+        // 2. Check if word from dictionary contains uppercase, if it does make sure word is all uppercase
+        if (hasUpperCase(foundEntry->original)) { // If word in dictionary has uppercase
+            if (isAllUpperCase(word)) { // Word must be all uppercase
+                return 1;
             } else {
-                isCapital = 0;
+                return 0;
             }
 
-            // Valid if all upper and lowercase is in dictionary
-            if ((allUpper && binarySearch(dictBuffer, lowerCaseWord, dictFileSize, 1) >= 0)) {
-                free(lowerCaseWord);
-                free(dictWord);
-                return 1; // Matching lowercase version is found
+        } else { // 3. No capitals in word
+            if (isAllUpperCase(word)) {
+                return 1; // We know the lowercase version is in dict
             }
 
-            // Valid if not all uppercase but only first letter is
-            if (!allUpper) {
-                if (isCapital && binarySearch(dictBuffer, lowerCaseWord, dictFileSize, 1) >= 0) {
-                    free(lowerCaseWord);
-                    free(dictWord);
-                    return 1;
-                }
+            // Check if first letter is capital
+            char *dictWordCapital = foundEntry->original;
+            dictWordCapital[0] = toupper(dictWordCapital[0]);
+
+            if (strcmp(word, dictWordCapital) == 0) {
+                return 1;
             }
-
-            free(lowerCaseWord);
-        } 
-        else {
-            printf("Capital letters present in dictionary word. Verifying '%s' against '%s'.\n", word, dictWord);
-
-            for (int i = 0; i < wordLength; i++) {
-                if (!isupper(word[i])) {
-                    free(dictWord);
-                    return 0;
-                }
-            }
-
-            return 1; // All uppercase
         }
 
-        free(dictWord);
     }
 
-    return 0; // No match found
+    return 0;
 
 }
     
 
 
-   int spellCheckFile(const char *path, char* dictBuffer, off_t dictFileSize) {
-       int fd = open(path, O_RDONLY);
-       if (fd < 0) {
-           close(fd);
-           return -1;
-       }
+int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t numDictWords) {
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        close(fd);
+        return EXIT_FAILURE;
+    }
 
 
-       size_t bufferSize = 1024;
-       size_t wordBufferSize = 100;
-       char* wordBuffer = (char*)malloc(wordBufferSize);
+    size_t bufferSize = 1024;
+    char *buffer = (char *)malloc(bufferSize);
+    if (!buffer) {
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    char wordBuffer[101];
+    ssize_t bytesRead;
+    int wordLength = 0;
+    int lineNum = 0;
+    int colNum = 0; 
+    int startColNum = 1;
+
+    while ((bytesRead = read(fd, buffer, bufferSize)) > 0) { // Read bytes from file into buffer
+        for (ssize_t i = 0; i < bytesRead; i++) {
+            char ch = buffer[i];
+
+            if (ch == '\n') {
+                lineNum++;  // Increment line number
+                colNum = 0; // Reset column number when new line encountered
+            } else {
+                colNum++;
+            }
+
+            if (isalpha(ch) || (wordLength > 0 && (ch == '\'' || ch == '-'))) {
+                if (wordLength == 0) { // Starting a new word
+                    startColNum = colNum;
+                }
+                if (wordLength < 100) {
+                    wordBuffer[wordLength++] = ch;
+                }
+            } else if (wordLength > 0) {
+                wordBuffer[wordLength] = '\0'; // Null-terminate
+
+                if (!checkWord(wordBuffer, dictionaryEntries, numDictWords)) {
+                    printf("%s (%d,%d): %s\n", path, lineNum, startColNum, wordBuffer);
+                }
+
+                wordLength = 0;
+            }
+        }
+    }
 
 
-       char *buffer = (char *)malloc(bufferSize); // Buffer for reading data from file
-       ssize_t bytes_read;
-       size_t wordLength = 0;
-       int lineNum = 1;
-       int colNum = 1; 
-       int lineNumAtStart = lineNum;
-       int colNumAtStart = colNum;
-       while ((bytes_read = read(fd, buffer, bufferSize)) > 0) { // Read bytes from file into buffer
-           for (ssize_t i = 0; i < bytes_read; i++) {
-               char ch = buffer[i];
-               if (ch == '\n') {
-                   lineNum++;  // Increment line number
-                   colNum = 1; // Reset column number when new line encountered
-               } else {
-                   colNum++; // Increment column number
-               }
+    free(buffer);
+    close(fd);
+
+    return 0; // Successful operation
+
+}
 
 
-               if ((!isspace(ch) && ch != '-')) {
-                   if (wordLength == 0) {
-                       lineNumAtStart = lineNum;
-                       colNumAtStart = colNum - 1;
-                   }
-                   if (wordLength < wordBufferSize - 1) {
-                       wordBuffer[wordLength] = ch;
-                       wordLength++;
-                   } else {
-                       // Word buffer overflow, handle error or resize buffer as needed
-                   }
-               } else { //if ch is a whitespace character
-                   if (wordLength > 0) {
-
-
-                       int i = 0;
-                       while (!isalpha(wordBuffer[i])) {
-                           i++;
-                       }
-                       // Shift the word to the left to remove non-alphabetic characters
-                       memmove(wordBuffer, wordBuffer + i, wordLength - i + 1);
-                       wordLength -= i;
-
-
-                       // Remove non-alphabetic characters from the end of the word
-                       int j = 0;
-                       while (wordLength > 0 && !isalpha(wordBuffer[wordLength - 1 - j])) {
-                           wordLength--;
-                       }
-                       wordBuffer[wordLength] = '\0';
-                           int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize, 0);
-                           if (foundWord < 0) {
-                               // Convert first letter to uppercase and the rest to lowercase
-                               char *capitalizedWord = strdup(wordBuffer);
-                               if (capitalizedWord != NULL) {
-                                   capitalizedWord[0] = toupper(capitalizedWord[0]); // Capitalize first letter
-                                   for (int i = 1; i < strlen(capitalizedWord); i++) {
-                                       capitalizedWord[i] = tolower(capitalizedWord[i]); // Lowercase the rest
-                                   }
-                                   foundWord = binarySearch(dictBuffer, capitalizedWord, dictFileSize, 0);
-                                   free(capitalizedWord);
-                               }
-                           }
-                           if (foundWord < 0) {
-                               char *lowerCaseWord = strdup(wordBuffer);
-                               for (size_t i = 0; i < strlen(wordBuffer); i++) {
-                                   lowerCaseWord[i] = tolower(lowerCaseWord[i]);
-                               }
-                               foundWord = binarySearch(dictBuffer, lowerCaseWord, dictFileSize, 0);
-                           }
-
-
-                           // If still 0
-                           if (foundWord < 0) {
-                               printf("%s (%d,%d): %s\n", path, lineNumAtStart, colNumAtStart, wordBuffer);
-                           }
-
-
-                           wordLength = 0; // Reset word length for the next word
-                   }
-               }
-           }
-       }
-
-
-       if (wordLength > 0) {
-
-
-                       int i = 0;
-                       while (!isalpha(wordBuffer[i])) {
-                           i++;
-                       }
-                       // Shift the word to the left to remove non-alphabetic characters
-                       memmove(wordBuffer, wordBuffer + i, wordLength - i + 1);
-                       wordLength -= i;
-
-
-                       // Remove non-alphabetic characters from the end of the word
-                       int j = 0;
-                       while (wordLength > 0 && !isalpha(wordBuffer[wordLength - 1 - j])) {
-                           wordLength--;
-                       }
-                       wordBuffer[wordLength] = '\0';
-                           int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize, 0);
-                           if (foundWord < 0) {
-                               // Convert first letter to uppercase and the rest to lowercase
-                               char *capitalizedWord = strdup(wordBuffer);
-                               if (capitalizedWord != NULL) {
-                                   capitalizedWord[0] = toupper(capitalizedWord[0]); // Capitalize first letter
-                                   for (int i = 1; i < strlen(capitalizedWord); i++) {
-                                       capitalizedWord[i] = tolower(capitalizedWord[i]); // Lowercase the rest
-                                   }
-                                   foundWord = binarySearch(dictBuffer, capitalizedWord, dictFileSize, 0);
-                                   free(capitalizedWord);
-                               }
-                           }
-                           if (foundWord < 0) {
-                               char *lowerCaseWord = strdup(wordBuffer);
-                               for (size_t i = 0; i < strlen(wordBuffer); i++) {
-                                   lowerCaseWord[i] = tolower(lowerCaseWord[i]);
-                               }
-                               foundWord = binarySearch(dictBuffer, lowerCaseWord, dictFileSize, 0);
-                           }
-
-
-                           // If still 0
-                           if (foundWord < 0) {
-                               printf("%s (%d,%d): %s\n", path, lineNumAtStart, colNumAtStart, wordBuffer);
-                           }
-
-
-                           wordLength = 0; // Reset word length for the next word
-                  
-       }
-
-
-
-
-       close(fd);
-       free(wordBuffer);
-       free(buffer);
-       return 0;
-   }
-
-
-    int spellCheckDirectory(const char *dirPath, char *dictBuffer, off_t dictFileSize) {
+    int spellCheckDirectory(const char *dirPath, DictionaryEntry *dictionaryEntries, size_t numDictWords) {
         DIR *dir = opendir(dirPath);
         if (dir == NULL) {
             return -1;
@@ -429,12 +319,12 @@ int checkWord(char *word, char *dictBuffer, off_t dictFileSize, int wordLength) 
 
             if (stat(path, &entryStat) == 0) {
                 if (S_ISDIR(entryStat.st_mode)) {
-                    spellCheckDirectory(path, dictBuffer, dictFileSize); // Directory so call recursively
+                    spellCheckDirectory(path, dictionaryEntries, numDictWords); // Directory so call recursively
                 } else if (S_ISREG(entryStat.st_mode)) {
                     // Regular file, make sure it ends with .txt
                     if (strstr(entry->d_name, ".txt") != NULL) { // Saw strstr online, pretty sure we can use??
                         // Call spell check
-                        spellCheckFile(path, dictBuffer, dictFileSize);
+                        spellCheckFile(path, dictionaryEntries, numDictWords);
                     }
                 }
             } else {
