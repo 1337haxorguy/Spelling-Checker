@@ -141,8 +141,10 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
         char *buffer = (char *)malloc(bufferSize); // Buffer for reading data from file
         ssize_t bytes_read;
         size_t wordLength = 0;
-        int lineNum = 0;
+        int lineNum = 1;
         int colNum = 1;  
+        int lineNumAtStart = lineNum;
+        int colNumAtStart = colNum;
         while ((bytes_read = read(fd, buffer, bufferSize)) > 0) { // Read bytes from file into buffer
             for (ssize_t i = 0; i < bytes_read; i++) {
                 char ch = buffer[i];
@@ -154,61 +156,111 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
                 }
 
                 if ((!isspace(ch) && ch != '-')) {
-                    // If the character is a letter, add it to the word buffer
+                    if (wordLength == 0) {
+                        lineNumAtStart = lineNum;
+                        colNumAtStart = colNum - 1;
+                    }
                     if (wordLength < wordBufferSize - 1) {
-                        wordBuffer[wordLength++] = ch;
+                        wordBuffer[wordLength] = ch;
+                        wordLength++;
                     } else {
                         // Word buffer overflow, handle error or resize buffer as needed
                     }
-                } else {
+                } else { //if ch is a whitespace character
                     if (wordLength > 0) {
-                    int i = 0;
-                    while (!isalpha(wordBuffer[i])) {
-                        i++;
-                    }
-                    // Shift the word to the left to remove non-alphabetic characters
-                    memmove(wordBuffer, wordBuffer + i, wordLength - i + 1);
-                    wordLength -= i;
 
-                    // Remove non-alphabetic characters from the end of the word
-                    int j = 0;
-                    while (wordLength > 0 && !isalpha(wordBuffer[wordLength - 1])) {
-                        j++;
-                        wordLength--;
-                    }
-                    wordBuffer[wordLength] = '\0';
+                        int i = 0;
+                        while (!isalpha(wordBuffer[i])) {
+                            i++;
+                        }
+                        // Shift the word to the left to remove non-alphabetic characters
+                        memmove(wordBuffer, wordBuffer + i, wordLength - i + 1);
+                        wordLength -= i;
 
-                        int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
-                        if (foundWord < 0) {
-                            // Convert first letter to uppercase and the rest to lowercase
-                            char *capitalizedWord = strdup(wordBuffer); 
-                            if (capitalizedWord != NULL) {
-                                capitalizedWord[0] = toupper(capitalizedWord[0]); // Capitalize first letter
-                                for (int i = 1; i < strlen(capitalizedWord); i++) {
-                                    capitalizedWord[i] = tolower(capitalizedWord[i]); // Lowercase the rest
+                        // Remove non-alphabetic characters from the end of the word
+                        int j = 0;
+                        while (wordLength > 0 && !isalpha(wordBuffer[wordLength - 1 - j])) {
+                            wordLength--;
+                        }
+                        wordBuffer[wordLength] = '\0';
+                            int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
+                            if (foundWord < 0) {
+                                // Convert first letter to uppercase and the rest to lowercase
+                                char *capitalizedWord = strdup(wordBuffer); 
+                                if (capitalizedWord != NULL) {
+                                    capitalizedWord[0] = toupper(capitalizedWord[0]); // Capitalize first letter
+                                    for (int i = 1; i < strlen(capitalizedWord); i++) {
+                                        capitalizedWord[i] = tolower(capitalizedWord[i]); // Lowercase the rest
+                                    }
+                                    foundWord = binarySearch(dictBuffer, capitalizedWord, dictFileSize);
+                                    free(capitalizedWord); 
                                 }
-                                foundWord = binarySearch(dictBuffer, capitalizedWord, dictFileSize);
-                                free(capitalizedWord); 
+                            } 
+                            if (foundWord < 0) {
+                                char *lowerCaseWord = strdup(wordBuffer); 
+                                for (size_t i = 0; i < strlen(wordBuffer); i++) {
+                                    lowerCaseWord[i] = tolower(lowerCaseWord[i]);
+                                }
+                                foundWord = binarySearch(dictBuffer, lowerCaseWord, dictFileSize);
                             }
-                        } 
-                        if (foundWord < 0) {
-                            char *lowerCaseWord = strdup(wordBuffer); 
-                            for (size_t i = 0; i < strlen(wordBuffer); i++) {
-                                lowerCaseWord[i] = tolower(lowerCaseWord[i]);
+
+                            // If still 0
+                            if (foundWord < 0) {
+                                printf("%s (%d,%d): %s\n", path, lineNumAtStart, colNumAtStart, wordBuffer);
                             }
-                            foundWord = binarySearch(dictBuffer, lowerCaseWord, dictFileSize);
-                        }
 
-                        // If still 0
-                        if (foundWord < 0) {
-                            printf("%s (%d,%d): %s\n", path, lineNum, colNum, wordBuffer);
-                        }
-
-                        wordLength = 0; // Reset word length for the next word
+                            wordLength = 0; // Reset word length for the next word
                     }
                 }
             }
         }
+
+        if (wordLength > 0) {
+
+                        int i = 0;
+                        while (!isalpha(wordBuffer[i])) {
+                            i++;
+                        }
+                        // Shift the word to the left to remove non-alphabetic characters
+                        memmove(wordBuffer, wordBuffer + i, wordLength - i + 1);
+                        wordLength -= i;
+
+                        // Remove non-alphabetic characters from the end of the word
+                        int j = 0;
+                        while (wordLength > 0 && !isalpha(wordBuffer[wordLength - 1 - j])) {
+                            wordLength--;
+                        }
+                        wordBuffer[wordLength] = '\0';
+                            int foundWord = binarySearch(dictBuffer, wordBuffer, dictFileSize);
+                            if (foundWord < 0) {
+                                // Convert first letter to uppercase and the rest to lowercase
+                                char *capitalizedWord = strdup(wordBuffer); 
+                                if (capitalizedWord != NULL) {
+                                    capitalizedWord[0] = toupper(capitalizedWord[0]); // Capitalize first letter
+                                    for (int i = 1; i < strlen(capitalizedWord); i++) {
+                                        capitalizedWord[i] = tolower(capitalizedWord[i]); // Lowercase the rest
+                                    }
+                                    foundWord = binarySearch(dictBuffer, capitalizedWord, dictFileSize);
+                                    free(capitalizedWord); 
+                                }
+                            } 
+                            if (foundWord < 0) {
+                                char *lowerCaseWord = strdup(wordBuffer); 
+                                for (size_t i = 0; i < strlen(wordBuffer); i++) {
+                                    lowerCaseWord[i] = tolower(lowerCaseWord[i]);
+                                }
+                                foundWord = binarySearch(dictBuffer, lowerCaseWord, dictFileSize);
+                            }
+
+                            // If still 0
+                            if (foundWord < 0) {
+                                printf("%s (%d,%d): %s\n", path, lineNumAtStart, colNumAtStart, wordBuffer);
+                            }
+
+                            wordLength = 0; // Reset word length for the next word
+                    
+        }
+
 
         close(fd);
         free(wordBuffer);
@@ -258,3 +310,5 @@ int binarySearch(char *dictBuffer, char *wordBuffer, off_t dictBufferSize) {
 
 
     }
+
+    
