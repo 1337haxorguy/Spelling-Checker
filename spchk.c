@@ -32,6 +32,9 @@ int checkWord(char *word, DictionaryEntry *dictionaryEntires, size_t numDictWord
 int compareEntries(const void *a, const void *b) {
     const char *word = (const char *)a;
     const DictionaryEntry *entry = (const DictionaryEntry *)b;
+    printf("Comparing: %s\n", entry->modified); // Corrected
+
+    
     return  strcmp(word, entry->modified); // Compares lowercase version of words
 }
 
@@ -252,9 +255,10 @@ int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t 
     char wordBuffer[101];
     ssize_t bytesRead;
     int wordLength = 0;
-    int lineNum = 0;
+    int lineNum = 1;
     int colNum = 0; 
     int startColNum = 1;
+    int startLineNum = lineNum;
 
     while ((bytesRead = read(fd, buffer, bufferSize)) > 0) { // Read bytes from file into buffer
         for (ssize_t i = 0; i < bytesRead; i++) {
@@ -270,6 +274,7 @@ int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t 
             if (isalpha(ch) || (wordLength > 0 && (ch == '\'' || ch == '-'))) {
                 if (wordLength == 0) { // Starting a new word
                     startColNum = colNum;
+                    startLineNum = lineNum;
                 }
                 if (wordLength < 100) {
                     wordBuffer[wordLength++] = ch;
@@ -278,7 +283,7 @@ int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t 
                 wordBuffer[wordLength] = '\0'; // Null-terminate
 
                 if (!checkWord(wordBuffer, dictionaryEntries, numDictWords)) {
-                    printf("%s (%d,%d): %s\n", path, lineNum, startColNum, wordBuffer);
+                    printf("%s (%d,%d): %s\n", path, startLineNum, startColNum, wordBuffer);
                 }
 
                 wordLength = 0;
@@ -286,6 +291,15 @@ int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t 
         }
     }
 
+        if (wordLength > 0) {
+            wordBuffer[wordLength] = '\0'; // Null-terminate
+
+            if (!checkWord(wordBuffer, dictionaryEntries, numDictWords)) {
+                printf("%s (%d,%d): %s\n", path, lineNum, startColNum, wordBuffer);
+            }
+
+            wordLength = 0;
+        }
 
     free(buffer);
     close(fd);
