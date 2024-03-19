@@ -32,8 +32,6 @@ int checkWord(char *word, DictionaryEntry *dictionaryEntires, size_t numDictWord
 int compareEntries(const void *a, const void *b) {
     const char *word = (const char *)a;
     const DictionaryEntry *entry = (const DictionaryEntry *)b;
-    printf("Comparing: %s\n", entry->modified); // Corrected
-
     
     return  strcmp(word, entry->modified); // Compares lowercase version of words
 }
@@ -158,14 +156,28 @@ int main(int argc, char *argv[]) {
 DictionaryEntry* binarySearch(const char *word, DictionaryEntry *entries, size_t numDictEntries) {
     int low = 0;
     int high = numDictEntries -1;
-
+    DictionaryEntry *bestMatch = NULL;
 
     while (low <= high) { 
         size_t mid = low + (high-low) / 2;
         int cmp = compareEntries(word, &entries[mid]);
 
         if(cmp == 0) {
-            return &entries[mid]; // Word found
+
+            // Check for me ME both in dict
+            bestMatch = &entries[mid]; // Word found
+            int lookAroundIndex = mid - 1;
+            while(lookAroundIndex >= low && strcmp(entries[lookAroundIndex].modified, word) == 0) {
+                if(strcmp(entries[lookAroundIndex].original, word) == 0) return &entries[lookAroundIndex];
+                lookAroundIndex--;
+            }
+            lookAroundIndex = mid + 1;
+            while(lookAroundIndex <= high && strcmp(entries[lookAroundIndex].modified, word) == 0) {
+                if(strcmp(entries[lookAroundIndex].original, word) == 0) return &entries[lookAroundIndex];
+                lookAroundIndex++;
+            }
+            break;
+
         } else if (cmp < 0) {
             high = mid - 1;
         } else {
@@ -174,7 +186,7 @@ DictionaryEntry* binarySearch(const char *word, DictionaryEntry *entries, size_t
 
     }
 
-    return NULL;
+    return bestMatch;
 }
 
 
@@ -197,15 +209,18 @@ int isAllUpperCase(const char *str) {
 
 int checkWord(char *word, DictionaryEntry *dictionaryEntries, size_t numDictEntries) {
     char *wordLower = toLower(word);
-    DictionaryEntry *foundEntry = binarySearch(wordLower, dictionaryEntries, numDictEntries);
+    DictionaryEntry *foundEntry = binarySearch(wordLower, dictionaryEntries, numDictEntries); // DictionaryEntry struct of word
     free(wordLower);
 
     if (foundEntry != NULL) {
-
         // 1. Check for exact match
         if (strcmp(foundEntry->original, word) == 0) {
+            printf("Exact match for word: '%s'\n", word);
+
             return 1;
         }
+
+
 
         // 2. Check if word from dictionary contains uppercase, if it does make sure word is all uppercase
         if (hasUpperCase(foundEntry->original)) { // If word in dictionary has uppercase
@@ -219,6 +234,7 @@ int checkWord(char *word, DictionaryEntry *dictionaryEntries, size_t numDictEntr
             if (isAllUpperCase(word)) {
                 return 1; // We know the lowercase version is in dict
             }
+
 
             // Check if first letter is capital
             char *dictWordCapital = foundEntry->original;
@@ -264,17 +280,23 @@ int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t 
         for (ssize_t i = 0; i < bytesRead; i++) {
             char ch = buffer[i];
 
+            // printf("Processing char '%c' at Line: %d, Col: %d\n", ch, lineNum, colNum);
+
+
             if (ch == '\n') {
                 lineNum++;  // Increment line number
                 colNum = 0; // Reset column number when new line encountered
+                // printf("New line encountered, LineNum: %d, ColNum: %d\n", lineNum, colNum);
+
             } else {
                 colNum++;
             }
 
-            if (isalpha(ch) || (wordLength > 0 && (ch == '\'' || ch == '-'))) {
+            if (isalpha(ch) || (wordLength > 0 && (ch == '\'' || ch == '-'))) { // Check if char part of a word
                 if (wordLength == 0) { // Starting a new word
                     startColNum = colNum;
                     startLineNum = lineNum;
+                    // printf("Starting new word at Line: %d, StartCol: %d\n", startLineNum, startColNum);
                 }
                 if (wordLength < 100) {
                     wordBuffer[wordLength++] = ch;
@@ -291,6 +313,7 @@ int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t 
         }
     }
 
+        // Handles last word
         if (wordLength > 0) {
             wordBuffer[wordLength] = '\0'; // Null-terminate
 
