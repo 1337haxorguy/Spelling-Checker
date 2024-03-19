@@ -103,6 +103,10 @@ int main(int argc, char *argv[]) {
     char *line = strtok(dictBuffer, "\n");
     size_t index = 0;
     while (line != NULL && index < numdDictWords) {
+        size_t len = strlen(line);
+        if (len > 0 && line[len-1] == '\n') {
+            line[len-1] = '\0';
+        }
         dictionaryEntries[index].original = strdup(line);
         dictionaryEntries[index].modified = toLower(line);
         line = strtok(NULL, "\n");
@@ -210,13 +214,12 @@ int isAllUpperCase(const char *str) {
 int checkWord(char *word, DictionaryEntry *dictionaryEntries, size_t numDictEntries) {
     char *wordLower = toLower(word);
     DictionaryEntry *foundEntry = binarySearch(wordLower, dictionaryEntries, numDictEntries); // DictionaryEntry struct of word
+
     free(wordLower);
 
     if (foundEntry != NULL) {
         // 1. Check for exact match
         if (strcmp(foundEntry->original, word) == 0) {
-            printf("Exact match for word: '%s'\n", word);
-
             return 1;
         }
 
@@ -237,12 +240,16 @@ int checkWord(char *word, DictionaryEntry *dictionaryEntries, size_t numDictEntr
 
 
             // Check if first letter is capital
-            char *dictWordCapital = foundEntry->original;
-            dictWordCapital[0] = toupper(dictWordCapital[0]);
+            char *dictWordCapital = strdup(foundEntry->original);
+            if (dictWordCapital != NULL) {
+                dictWordCapital[0] = toupper(dictWordCapital[0]);
+            }
 
             if (strcmp(word, dictWordCapital) == 0) {
+                free(dictWordCapital);
                 return 1;
             }
+            free(dictWordCapital);
         }
 
     }
