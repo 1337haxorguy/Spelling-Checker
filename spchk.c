@@ -129,15 +129,11 @@ int main(int argc, char *argv[]) {
         }
 
         if (S_ISREG(fileStat.st_mode)) { // File is regular
-            printf("%s is a regular file.\n", argv[i]); // Has to be removed in final
             result = spellCheckFile(argv[i], dictionaryEntries, numdDictWords); // Spell check file with buffer array
 
         } else if (S_ISDIR(fileStat.st_mode)) { // File is a directory
-            printf("%s is a directory.\n", argv[i]); // Has to be removed in final
             result = spellCheckDirectory(argv[i], dictionaryEntries, numdDictWords);
             
-        } else {
-            printf("%s is neither a regular file nor a directory.\n", argv[i]); // Has to be removed in final
         }
 
         if (result == -1) {
@@ -213,8 +209,8 @@ int isAllUpperCase(const char *str) {
 
 int checkWord(char *word, DictionaryEntry *dictionaryEntries, size_t numDictEntries) {
     char *wordLower = toLower(word);
-    DictionaryEntry *foundEntry = binarySearch(wordLower, dictionaryEntries, numDictEntries); // DictionaryEntry struct of word
 
+    DictionaryEntry *foundEntry = binarySearch(wordLower, dictionaryEntries, numDictEntries); // DictionaryEntry struct of word
     free(wordLower);
 
     if (foundEntry != NULL) {
@@ -299,7 +295,7 @@ int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t 
                 colNum++;
             }
 
-            if (isalpha(ch) || (wordLength > 0 && (ch == '\'' || ch == '-'))) { // Check if char part of a word
+            if (isalpha(ch) && ((!isspace(ch) && ch != '-'))) { // Check if char part of a word
                 if (wordLength == 0) { // Starting a new word
                     startColNum = colNum;
                     startLineNum = lineNum;
@@ -378,7 +374,6 @@ int spellCheckFile(const char *path, DictionaryEntry *dictionaryEntries, size_t 
 
         closedir(dir);
         return 0;
-
 
     }
 

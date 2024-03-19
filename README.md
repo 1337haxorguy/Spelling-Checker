@@ -1,18 +1,24 @@
 Angelo Dela Fuente add139
-
 Christopher Chiaramonte cmc701
 
-We have implemented three methods other than main. 
-1. Binary Search
-    We search through an inputted buffer for the specified word, if we 
-    land on the middle of the word we move the buffer to the start of the word
-2. Spell Check File
-    We iterate through the entire file, calling a binary search for each word in the file
-    We ignore all non-alpha characters at the beginning and end of each word
-3. Spell Check Directory
+The Spelling Checker program is designed to help identify spelling errors in text files based off a provided dictionary.
+We chose to implement a struct called DictionaryEntry to keep track of original dictionary words and their lowercase counterparts.
+By doing this we were able to efficiently make sure all words in the dictionary including those with capitals were handeled correctly. 
 
-In our main function we put the entire dictionary file into a buffer, to ensure speedy searching
 
-For testing we test a file with words within it using different spellings, capitalizations, and punctuation
-We also put a directory within a directory to spell check to ensure that the recursive directory travel 
-functions properly
+Test Scenarios
+
+Test 1: Single file check
+We ran the program with a single test file with correct and incorrect words to ensure it detects the errors despite spaces, etc.
+
+Test 2: Directory check
+Created a directory with several directories and text files inside to ensure directory traversel was working properly.
+
+Test 3: Case sensitivity
+We specifically made files with words containing various cases like APPLE, apple, ApPle to make sure incorrect ways were identified.
+
+Test 4: Large file check
+We ran the program with a large file to make sure it finished in a reasonable amount of time.
+
+Test 5: Special characters
+Created text files with special characters and lots of spacing to make sure it was handled correctly.
